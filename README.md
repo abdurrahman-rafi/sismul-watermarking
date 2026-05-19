@@ -106,6 +106,65 @@ Host Image (JPEG/BMP)
 
 ---
 
+## Visualisasi Pipeline
+
+Jalankan `python step_by_step.py` untuk menghasilkan semua gambar berikut di folder `steps/`.
+
+### Tahap 1 — Input
+
+| Host Image | Watermark (diperbesar 8×) |
+|:---:|:---:|
+| ![Host](steps/01_host.png) | ![Watermark](steps/02_watermark_original.png) |
+
+### Tahap 2 — Konversi RGB → YCbCr
+
+| Channel Y (Luminance) | Channel Cb | Channel Cr |
+|:---:|:---:|:---:|
+| ![Y](steps/03_Y_luminance.png) | ![Cb](steps/04_Cb_chroma_blue.png) | ![Cr](steps/05_Cr_chroma_red.png) |
+
+Watermark disisipkan ke **channel Y saja** karena mata manusia lebih sensitif terhadap perubahan luminance, dan channel Y tidak di-subsample oleh JPEG.
+
+### Tahap 3 — Domain DCT
+
+| DCT Spectrum (log-magnitude) | Posisi embed di setiap blok (titik merah = koefisien (4,1)) |
+|:---:|:---:|
+| ![Spectrum](steps/06_dct_spectrum.png) | ![Embed Position](steps/07_dct_embed_position.png) |
+
+| Blok aktif (putih) vs tidak aktif (abu) | Diagram satu blok 8×8 (sel merah = titik embed) |
+|:---:|:---:|
+| ![Active Blocks](steps/07b_active_blocks.png) | ![Block Diagram](steps/07c_single_block_coef.png) |
+
+> **Apa itu titik merah?**
+> Setiap blok 8×8 dari channel Y diubah ke domain frekuensi dengan DCT, menghasilkan **64 koefisien** per blok — dari DC (energi rendah, pojok kiri-atas) hingga frekuensi tinggi (pojok kanan-bawah).
+> **Titik merah menandai koefisien di baris 4, kolom 1** dalam grid 8×8 itu — posisi *mid-frequency* yang dipilih untuk menyisipkan satu bit watermark.
+>
+> Watermark 32×32 = **1024 bit** → hanya **1024 blok pertama** (area kiri-atas, kotak putih di gambar `07b`) yang dimodifikasi. Sisa blok tidak disentuh.
+> Gambar `07c` memperjelas: dari 64 koefisien dalam satu blok, hanya **satu sel merah** yang diubah nilainya.
+
+### Tahap 4 — Embedding
+
+| Host (asli) | Watermarked | Perbedaan × 20 |
+|:---:|:---:|:---:|
+| ![Host](steps/01_host.png) | ![Watermarked](steps/08_watermarked.png) | ![Diff](steps/09_difference_x20.png) |
+
+Gambar watermarked identik secara visual dengan host. Perbedaan diperbesar 20× — **abu-abu = tidak berubah**, terang/gelap = perubahan nilai piksel.
+
+### Tahap 5 — Simulasi Kompresi JPEG
+
+| QF=100 | QF=80 | QF=50 | QF=20 |
+|:---:|:---:|:---:|:---:|
+| ![QF100](steps/10_compressed_QF100.png) | ![QF80](steps/11_compressed_QF080.png) | ![QF50](steps/12_compressed_QF050.png) | ![QF20](steps/13_compressed_QF020.png) |
+
+### Tahap 6 — Ekstraksi Watermark
+
+| QF=100 — BER=0.000 ✓ | QF=80 — BER=0.000 ✓ | QF=50 — BER=0.000 ✓ | QF=20 — BER=0.795 ✗ |
+|:---:|:---:|:---:|:---:|
+| ![ext100](steps/14_extracted_QF100.png) | ![ext80](steps/15_extracted_QF080.png) | ![ext50](steps/16_extracted_QF050.png) | ![ext20](steps/17_extracted_QF020.png) |
+
+Watermark dapat diekstrak sempurna hingga QF=30. Pada QF=20, kompresi JPEG terlalu agresif — kuantisasi menghancurkan nilai koefisien (4,1) sehingga bit tidak bisa dibaca kembali.
+
+---
+
 ## Parameter
 
 | Parameter  | Default | File | Penjelasan |
